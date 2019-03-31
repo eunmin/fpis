@@ -1,7 +1,7 @@
 object Problem3 extends App {
   def setHead[A](list: List[A], x: A): List[A] =
     list match {
-      case _ :: rest => x :: rest
+      case Cons(_, t) => Cons(x, t)
       case Nil => Nil
     }
 
