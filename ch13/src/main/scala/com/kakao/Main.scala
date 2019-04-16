@@ -68,14 +68,27 @@ object Main extends App {
 //      //
 //    )
 //  }
+//
+//  def ReadLine: IO[String] = IO { readLine }
+//  def PrintLine(msg: String):IO[Unit] = IO { println(msg) }
+//  def converter2: IO[Unit] = for {
+//    _ <- PrintLine("Enter a temperature in degrees Fahrenheit: ")
+//    d <- ReadLine.map(_.toDouble)
+//    _ <- PrintLine(fahrenheitToCelsius(d).toString)
+//  } yield ()
+//
+//  converter2.run
+//
+//  val echo = ReadLine.flatMap(PrintLine)
+//  val readInt = ReadLine.map(_.toInt)
 
-  def ReadLine: IO[String] = IO { readLine }
-  def PrintLine(msg: String):IO[Unit] = IO { println(msg) }
-  def converter2: IO[Unit] = for {
-    _ <- PrintLine("Enter a temperature in degrees Fahrenheit: ")
-    d <- ReadLine.map(_.toDouble)
-    _ <- PrintLine(fahrenheitToCelsius(d).toString)
-  } yield ()
+//  def factorial(n: Int): IO[Int] = for {
+//    acc <- ref(1)
+//    _ <- foreachM (1 to n toStream) (i => acc.modify(_ * i).skip)
+//    result <- acc.get
+//  } yield result
 
-  converter2.run
+  val f = (x: Int) => x
+  val g = List.fill(100000)(f).foldLeft(f)(_ compose _)
+  val result = g(42)
 }
