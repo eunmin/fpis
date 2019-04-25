@@ -200,17 +200,8 @@ def flatMap[A,B](as: List[A])(f: A => List[B]): List[B]
 ## 트리
 
 - List는 대수적 자료 형식(Algebraic Data Type)라고 부른다. ADT는 합 타입(인자)과 곱 타입(extends)으로 표현된다.
-- 곱하기(타입1 x 타입2) : 타입1, 타입2 조합 가능한 모든 페어 (F#의 예)
-  ```f#
-  type Temp = F of int | C of float
-  ```
-- 더하기(타입1 + 타입2) : 타이1, 타입2 둘 중 하나 (F#의 예)
-  ```f#
-  type PaymentMethod =
-    | Cash
-    | Cheque of ChequeNumber
-    | Card of CardType * CardNumber
-  ```
+- 곱하기(타입1 x 타입2) : 타입1, 타입2 조합 가능한 모든 페어
+- 더하기(타입1 + 타입2) : 타입1, 타입2 둘 중 하나
 - 스칼라의 튜플도 ADT와 동일한 방식으로 작동한다.
   ```scala
   val p = ("Bob", 42)
