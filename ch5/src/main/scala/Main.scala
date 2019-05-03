@@ -43,5 +43,51 @@ object Main extends App {
 
   println(s.map(_ + 3).toList)
 
-  println(s.flatMap((x: Int) => Stream(x, x)))
+  println(s.append(Stream(4,5,6)).toList)
+
+  println(s.flatMap((x: Int) => Stream(x, x)).toList)
+
+  println(s.headOption2)
+
+  println(Stream().headOption2)
+
+  val ones: Stream[Int] = Stream.cons(1, ones)
+
+  println(ones.take(2).toList)
+
+  println("aaaaaa: " + ones.takeWhile(_ == 1))
+
+  // Problem 5.8
+  def constant[A](a: A): Stream[A] =
+    Stream.cons(a, constant(a))
+
+  println(constant(2).take(4).toList)
+
+  // Problem 5.9
+  def from(n: Int): Stream[Int] =
+    Stream.cons(n, from(n + 1))
+
+  println(from(10).take(3).toList)
+
+//   Problem 5.10
+  def fibs(x: Int, y: Int): Stream[Int] =
+    Stream.cons(x, fibs(y, x + y))
+
+  println(fibs(0, 1).take(10).toList)
+
+  def unfold[A,S](z: S)(f: S => Option[(A,S)]): Stream[A] =
+    f(z) match {
+      case None => Stream.empty
+      case Some((a, s)) => Stream.cons(a, unfold(s)(f))
+    }
+
+  def constant2[A](a: A): Stream[A] =
+    unfold(0)(x => Some((a, 0)))
+
+  def ones: Stream[Int] =
+    unfold(1)(x => )
+
+  println(constant2("a").take(3).toList)
+
+//  println(unfold(0)(Some((1, 0))).take(4).toList)
 }

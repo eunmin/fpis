@@ -1,4 +1,5 @@
-package PACKAGE_NAME;
+import java.util.Arrays;
 
 public class JavaMain {
+
 }
