@@ -159,4 +159,25 @@ object Main extends App {
     both_(int, double)
 
   println(randIntDouble2(rng3))
+
+  def simulate(input: Input): State[Machine, (Int, Int)] = {
+    State(machine => {
+      val Machine(locked, candies, coins) = machine
+      input match {
+        case Coin => {
+          if (candies > 0 && locked) ((candies, (coins + 1)), Machine(false, candies, (coins + 1)))
+          else ((candies, coins), machine)
+        }
+        case Turn => {
+          if (candies < 1 || locked) ((candies, coins), machine)
+          else (((candies - 1), coins), Machine(true, (candies - 1), coins))
+        }
+      }
+    })
+  }
+
+  def simulateMachine(inputs: List[Input]): State[Machine, (Int, Int)] =
+    inputs.foldLeft(State.unit[Machine,(Int,Int)]((0, 0)))((r, i) => r.map2(simulate(i))((x, y) => (x._1 + y._1, x._2 + y._2)))
+
+  println(simulateMachine(List(Coin, Turn, Coin, Turn, Coin, Turn, Coin, Turn)).run(Machine(true, 5, 10)))
 }
