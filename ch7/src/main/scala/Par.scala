@@ -1,3 +1,4 @@
+import java.util.concurrent._
 import java.util.concurrent.TimeUnit
 
 object Par {
@@ -44,5 +45,8 @@ object Par {
   def sequnce[A](ps: List[Par[A]]): Par[List[A]] = ???
 
   def parFilter[A](as: List[A])(f: A => Boolean): Par[List[A]] = ???
+
+  def equal[A](e: ExecutorService)(p: Par[A], p2: Par[A]): Boolean =
+    p(e).get == p2(e).get
 }
 

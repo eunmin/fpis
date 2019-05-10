@@ -320,11 +320,57 @@ def sum(ints: IndexedSeq[Int]): Int =
 
 ### 법칙 깨기: 미묘한 버그 하나
 
+- `FixThreadPool`을 1개로 해서 `ExecutorService`를 만들면 동시 실행이 되지 않고 블러킹이 되어
+  `fork(x) == x` 법칙이 깨진다. 아래 코드를 실행하면 교착 상태에 빠진다.
+  ```scala
+  val a = lazyUnit(42 + 1)
+  val s = ExecutorService.newFixedThreadPool(1)
+  println(Par.equal(s)(a, fork(a)))
+  ```
+- `fork`의 구현을 보면 알 수 있다. `submit`으로 새 스레드를 만들고 안에서 다시 `a(es).get`시에
+  `lazyUnit`으로 만든 `fork(unit(a))`를 불러 유일한 스래드 안에서 다시 스래드를 생성하려고 대기하면서
+  교착상태가 된다.
+  ```scala
+  def fork[A](a: => Par[A]): Par[A] =
+    es => es.submit(new Callable[A] {
+      def call = a(es).get
+    })
+  ```
+- 교착을 막으려면 `fork`를 아래 스래드를 띄우지 않으면 된다.
+  ```scala
+  def fork[A](fa: -> Par[A]): Par[A] =
+    es => fa(es)
+  ```
+- 하지만 스래드가 생성되지 않고 그냥 메인 스레드에서 실행되기 때문에 적절한 수정은 아니지만 이 기능도
+  계산을 지연시킬 수 있다는 점에서 의미가 있어 이름을 `delay`라고 하고 두면 좋겠다.
+  ```scala
+  def delay[A](fa: -> Par[A]): Par[A] =
+    es => fa(es)
+  ```
+
 ### 행위자를 이용한 완전 비차단 Par 구현
 
-- 함수적 설계의 여러 측면에 대한 논의로 넘어가도 된다
-- Actor를 사용
+- 고정 크기의 스래드 풀을 사용하면서 블러킹이 되지 않게 하기 위한 방법을 찾아보자.
+- `Future`와 `run`을 다음과 같이 바꿔보자.
+  ```scala
+  trait Future[+A] {
+    private[parallelism] def apply(k: A => Unit): Unit
+  }
+
+  // 원래 run
+  // def run[A](s: ExecutorService)(a: Par[A]): Future[A] = a(s)
+
+  def run[A](es: ExecutorService)(p: Par[A]): A = {
+      val ref = new java.util.concurrent.atomic.AtomicReference[A]
+      val latch = new CountDownLatch(1)
+      p(es) { a => ref.set(a); latch.countDown }
+      latch.await
+      ref.get
+    }
+  ```
 
 ## 조합기들을 가장 일반적인 형태로 정련
+
+- 
 
 ## 요약
