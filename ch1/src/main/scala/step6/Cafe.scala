@@ -26,8 +26,10 @@ class Cafe {
   }
 
   def buyCoffees(creditCard: CreditCard, n: Int): (List[Coffee], Charge) = {
-    val purchases: List[(Coffee, Charge)] = List.fill(n)(buyCoffee((creditCard)))
-    val (coffees, charges) = purchases.unzip
+    val purchases = List.fill(n)(buyCoffee(creditCard))
+    val a = purchases.unzip
+    val coffees = a._1
+    val charges = a._2
     (coffees, charges.reduce((c1, c2) => c1.combine(c2)))
   }
 }

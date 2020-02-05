@@ -22,5 +22,11 @@ class Cafe {
     (cup, Charge(creditCard, cup.price))
   }
 
-  def buyCoffees(creditCard: CreditCard, n: Int): (List[Coffee], Charge) = ??? // 함께 만들어봅시다!
+  def buyCoffees(creditCard: CreditCard, n: Int): (List[Coffee], Charge) = {
+    val coffees = List.fill(n)(Coffee
+    val a = coffees.map(buyCoffee(_))
+    val b = a.unzip
+    val result = (b._1, b._2.reduce(_.combine(_)))
+    result
+  }
 }
