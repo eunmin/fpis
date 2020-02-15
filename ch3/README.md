@@ -27,6 +27,7 @@
   // In List[Int] 
   // List[Int] > Nil (List[Any]) ???
   // List[Int] > Nil (List[모든타입의 하위타입]) = Nothing
+  // https://docs.scala-lang.org/resources/images/tour/unified-types-diagram.svg
   ```
   
   ```scala
