@@ -9,7 +9,42 @@
   sealed trait List[Int]
   case object Nil extends List[Int]
   case class Cons[Int](head: Int, tail: List[Int]) extends List[Int]
+  
+  Cons(1, Cons(2, Cons(3, Nil)))  
   ```
+  
+  ```scala
+  sealed trait List[A]
+  case object Nil extends List[?]
+  case class Cons[A](head: Int, tail: List[A]) extends List[A]
+  ```
+
+  ```scala
+  sealed trait List[A]
+  case object Nil extends List[Any]
+  case class Cons[A](head: Int, tail: List[A]) extends List[A]
+  
+  // In List[Int] 
+  // List[Int] > Nil (List[Any]) ???
+  // List[Int] > Nil (List[모든타입의 하위타입]) = Nothing
+  ```
+  
+  ```scala
+  sealed trait List[A]
+  case object Nil extends List[Nothing]
+  case class Cons[A](head: Int, tail: List[A]) extends List[A]
+  
+  // List[Int] > List[Nothing] ??? 제약조건이 없다.
+  ```
+  
+  ```scala
+  sealed trait List[+A]
+  case object Nil extends List[Nothing]
+  case class Cons[+A](head: Int, tail: List[A]) extends List[A]
+  
+  // 공변 (covariant)
+  ```
+
   ```scala
   sealed trait List[+A]
   case object Nil extends List[Nothing]
