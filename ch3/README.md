@@ -6,6 +6,11 @@
 - 두 리스트를 연결하면 새로운 리스트가 나온다.
 - 단일 연결 목록(singly linked list)의 예
   ```scala
+  sealed trait List[Int]
+  case object Nil extends List[Int]
+  case class Cons[Int](head: Int, tail: List[Int]) extends List[Int]
+  ```
+  ```scala
   sealed trait List[+A]
   case object Nil extends List[Nothing]
   case class Cons[+A](head: A, tail: List[A]) extends List[A]
