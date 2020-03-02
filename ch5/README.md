@@ -201,6 +201,19 @@
     def filter(f: A => Boolean): Stream[A] =
       foldRight(Stream.empty[A])((a, b) => if (f(a)) Stream.cons(a, b) else b)
   }
+  
+  object Stream {
+    def cons[A](hd: => A, tl: => Stream[A]): Stream[A] = {
+      lazy val head = hd
+      lazy val tail = tl
+      Cons(() => head, () => tail)
+    }
+
+    def empty[A]: Stream[A] = Empty
+
+    def apply[A](as: A*):Stream[A] =
+      if (as.isEmpty) empty else cons(as.head, apply(as.tail: _*))
+  }
   ```
   ```scala
   Stream(1,2,3,4).map(_ + 10).filter(_ % 2 == 0).toList
