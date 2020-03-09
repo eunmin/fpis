@@ -1,4 +1,7 @@
+package fpis.ch5
+
 object Main extends App {
+  /*
   def if2[A](cond: Boolean, onTrue: () => A, onFlase: () => A): A =
     if (cond) onTrue() else onFlase()
 
@@ -84,10 +87,17 @@ object Main extends App {
   def constant2[A](a: A): Stream[A] =
     unfold(0)(x => Some((a, 0)))
 
-  def ones: Stream[Int] =
-    unfold(1)(x => )
+//  def ones: Stream[Int] =
+//    unfold(1)(x => )
 
   println(constant2("a").take(3).toList)
 
 //  println(unfold(0)(Some((1, 0))).take(4).toList)
+   */
+  val s = Stream.cons({ println("head"); 1 }, { println("tail"); Empty })
+
+  LazyList(1, 2, 3, 4).foldRight(100)((x, _) => { println(s"lazylist $x"); x + 1 })
+  Stream(1, 2, 3, 4).foldRight(100)((x, _) => { println(s"stream: $x"); x + 1 })
+
+  //println(LazyList(1, 2, 3, 4).foldLeft(100)((x, _) => { println(x); x + 1 }))
 }

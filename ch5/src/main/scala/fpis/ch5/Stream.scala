@@ -1,3 +1,5 @@
+package fpis.ch5
+
 import Stream._
 
 sealed trait Stream[+A] {

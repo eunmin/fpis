@@ -37,7 +37,7 @@ class Dog(val age: Int) extends Animal("test")
 object Main extends App {
 
 
-  val a:List[Animal] = Cons(new Dog(23), Cons(new Animal("ok")))
+//  val a:List[Animal] = Cons(new Dog(23), Cons(new Animal("ok")))
 
-  println(a)
+  //println(a)
 }

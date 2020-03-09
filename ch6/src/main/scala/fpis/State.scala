@@ -1,3 +1,5 @@
+package fpis
+
 import State._
 
 case class State[S,+A](run: S => (A,S)) {
@@ -27,4 +29,23 @@ object State {
   def get[S]: State[S, S] = State(s => (s, s))
 
   def set[S](s: S): State[S, Unit] = State(_ => ((), s))
+}
+
+object Main2 extends App {
+  var state = 0
+
+  state = 100
+  val x = state
+  val y = x + 10
+  state = x + y
+  println(s"$y $state")
+
+  val p = for {
+    _ <- set(100)
+    x <- get[Int]
+    y = x + 10
+    _ <- set(x + y)
+  } yield y
+
+  println(p.run(0))
 }

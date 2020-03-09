@@ -1,3 +1,5 @@
+package fpis
+
 object Main extends App {
   val rng = new scala.util.Random
 
