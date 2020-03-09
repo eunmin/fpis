@@ -38,9 +38,9 @@
     def nextInt: (Int, RNG)
   }
   ```
-- 새 상태를 가진 `RNG`를 사용하지 말지는 `nextInt` 호출자가 결정한다. `RNG`가 어떻게 동작하는지
+- 새 상태를 가진 `RNG`를 사용할지 말지는 `nextInt` 호출자가 결정한다. `RNG`가 어떻게 동작하는지
   노출하지 않는다는 점에서 여전히 캡슐화를 유지한다.
-- 아래는 구현 예제다. 구현 내용은 중요하지 않고 새로운 난수 발생기를 돌려준다는 점이 중요하다.
+- 아래는 구현 예제다. 구현 내용은 중요하지 않고(linear congruential generator) 새로운 난수 발생기를 돌려준다는 점이 중요하다.
   ```scala
   case class SimpleRNG(seed: Long) extends RNG {
     def nextInt: (Int, RNG) = {
@@ -81,15 +81,16 @@
     def baz: (Int, Foo)
   }
   ```
-- 만약 앞의 예제에서 `RNG`를 재사용 한다면 같은 값이 나올 것이다. 만약 안에서 다른 값을 내야한다면
-  아래 처럼 할 수 있을 것이다.
+- 만약 앞의 예제에서 `RNG`를 재사용 한다면 같은 값이 나올 것이다. 
   ```scala
   def randomPair(rng: RNG): (Int, Int) = {
     val (i1, _) = rng.nextInt
     val (i2, _) = rng.nextInt
     (i1, i2)
   }
-
+  ```
+- 만약 안에서 다른 값을 내야한다면 아래 처럼 할 수 있을 것이다.
+  ```scala
   def randomPair2(rng: RNG): ((Int, Int), RNG) = {
     val (i1, rng2) = rng.nextInt
     val (i2, rng3) = rng2.nextInt
@@ -99,15 +100,26 @@
 - 이 패턴은 반복되기 때문에 추출할 수 있는 부분이 있는지 살펴보자.
 - [연습문제] `RNG.nextInt`가 `0`이상 `Int.MaxValue` 이하 난수가 생성되도록 함수를 작성하라.
   ```scala
-  def nonNegativeInt(rng: RNG): (Int, RNG)
+  def nonNegativeInt(rng: RNG): (Int, RNG) = {
+    val (i, rng2) = rng.nextInt
+    (Math.abs(i), rng2)
+  }
   ```
 - [연습문제] `0`이상 `1`미만의 `Double` 난수를 발생하는 함수를 만들어라.
   ```scala
-  def dobule(rng: RNG): (Double, RNG)
+  def double(rng: RNG): (Double, RNG) = {
+    val (i, rng2) = nonNegativeInt(rng)
+    (i.toDouble / Int.MaxValue.toDouble, rng2)
+  }
   ```
 - [연습문제] 앞의 함수를 재사용해서 아래 함수를 만들어라.
   ```scala
-  def intDouble(rng: RNG): ((Int, Double), RNG)
+  def intDouble(rng: RNG): ((Int, Double), RNG) = {
+    val (n, rng2) = rng.nextInt
+    val (d, rng3) = double(rng2)
+    ((n,d), rng3)
+  }
+  
   def doubleInt(rng: RNG): ((Double, Int), RNG)
   def double3(rng: RNG): ((Double, Double, Double), RNG)
   ```
@@ -125,6 +137,10 @@
   ```
 - 이제 `nextInt`를 새로운 형식으로 정의해보자.
   ```scala
+  trait RNG {
+    def nextInt: (Int, RNG)
+  }
+  
   val int: Rand[Int] = _.nextInt
   ```
 - 여러가지 조합기를 만들어보자. 먼저 값을 받아서 그대로 전달하는 `unit`을 만들어보자.
@@ -146,12 +162,21 @@
     map(nonNegativeInt)(i => i - i % 2)
   ```
 - [연습문제] `map`으로 `double`을 만들어보라.
+  ```scala
+  def double: Rand[Double] =
+    map(nonNegativeInt)(i => i.toDouble / Int.MaxValue.toDouble)
+  ```
 
 ### 상태 동작들의 조합
 
 - [연습문제] `map`으로는 `intDouble`이나 `doubleInt`를 구현할 수 없다. 그래서 `map2`를 만들어보자.
   ```scala
-  def map2[A,B,C](ra: Rand[A], rb: Rand[B])(f: (A, B) => C): Rand[C]
+  def map2[A,B,C](ra: Rand[A], rb: Rand[B])(f: (A, B) => C): Rand[C] =
+    rng => {
+      val (a, rng2) = ra(rng)
+      val (b, rng3) = rb(rng2)
+      (f(a,b), rng3)
+    }
   ```
 - `map2`로 `A`, `B` 타입의 상태 발생 동작이 있다면 함께 발생하게 하는 함수도 만들 수 있다.
   ```scala
@@ -202,9 +227,17 @@
 - 이런 것을 해주는 함수가 있다면 더 좋은데 그것은 `flatMap`이다.
 - [연습문제] `flatMap`을 만들고 `nonNegativeLessThan`을 만들어라
   ```scala
-  def flatMap[A,B](f: Rand[A])(g: A => Rand[B]): Rand[B]
+  def flatMap[A,B](f: Rand[A])(g: A => Rand[B]): Rand[B] =
+    rng => {
+      val (x, rng2) = f(rng)
+      g(x)(rng2)
+    }
   ```
 - [연습문제] `map`과 `map2`를 `flatMap`으로 만들어라
+  ```scala
+  def map_[A,B](s: Rand[A])(f: A => B): Rand[B] =
+    flatMap(s)(x => unit(f(x)))
+  ```
 - 처음에 나왔던 `rollDie` 함수 오류를 잡아보자.
   ```scala
   def rollDie: Rand[Int] = nonNegativeLessThan(6)

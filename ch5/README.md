@@ -179,6 +179,44 @@
 - 아래 예제를 추적해보자.
   ```scala
   Stream(1,2,3,4).map(_ + 10).filter(_ % 2 == 0).toList
+  ```
+  ```scala
+  sealed trait Stream[+A] {
+    def headOption: Option[A] = this match {
+      case Empty => None
+      case Cons(h, t) => Some(h())
+    }
+    def toList: List[A] = this match {
+      case Empty => Nil
+      case Cons(h, t) => h() :: t().toList
+    }
+    def foldRight[B](z : => B)(f: (A, => B) => B): B =
+      this match {
+        case Cons(h, t) => f(h(), t().foldRight(z)(f))
+        case Empty => z
+      }
+    def map[B](f: A => B): Stream[B] =
+      foldRight(Stream.empty[B])((a, b) => Stream.cons(f(a), b))
+
+    def filter(f: A => Boolean): Stream[A] =
+      foldRight(Stream.empty[A])((a, b) => if (f(a)) Stream.cons(a, b) else b)
+  }
+  
+  object Stream {
+    def cons[A](hd: => A, tl: => Stream[A]): Stream[A] = {
+      lazy val head = hd
+      lazy val tail = tl
+      Cons(() => head, () => tail)
+    }
+
+    def empty[A]: Stream[A] = Empty
+
+    def apply[A](as: A*):Stream[A] =
+      if (as.isEmpty) empty else cons(as.head, apply(as.tail: _*))
+  }
+  ```
+  ```scala
+  Stream(1,2,3,4).map(_ + 10).filter(_ % 2 == 0).toList
   cons(11, Stream(2,3,4).map(_ + 10)).filter(_ % 2 == 0).toList
   Stream(2,3,4).map(_ + 10).filter(_ % 2 == 0).toList
   cons(12, Stream(3,4).map(_ + 10)).filter(_ % 2 == 0).toList
