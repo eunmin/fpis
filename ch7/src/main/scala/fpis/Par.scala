@@ -1,8 +1,9 @@
-import java.util.concurrent._
-import java.util.concurrent.TimeUnit
+package fpis
+
+import java.util.concurrent.{Callable, ExecutorService, Future, TimeUnit}
 
 object Par {
-  type Par[A] = ExecutorService => Future[A]
+  type Par[+A] = ExecutorService => Future[A]
 
   def unit[A](a: A): Par[A] = (es: ExecutorService) => UnitFuture(a)
 
@@ -49,4 +50,3 @@ object Par {
   def equal[A](e: ExecutorService)(p: Par[A], p2: Par[A]): Boolean =
     p(e).get == p2(e).get
 }
-
