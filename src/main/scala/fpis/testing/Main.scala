@@ -1,12 +1,11 @@
-package fpis
+package fpis.testing
 
 import java.util.concurrent.{ExecutorService, Executors}
 
 import fpis.parallelism.Par
 import fpis.parallelism.Par.Par
 import fpis.state.RNG
-import fpis.testing.Prop.{Falsified, Passed, Proved, forAll}
-import fpis.testing.{Gen, Prop}
+import fpis.testing.Prop.forAll
 
 object Main extends App {
 
@@ -16,7 +15,7 @@ object Main extends App {
   val intList = Gen.listOf(Gen.choose(0, 100)) // 0 부터 99까지 숫자를 만든다 (몇 개?)
   val prop = // 두 개의 속성을 모두 만족해야한다 && 조합
     forAll(intList)(ns => ns.reverse.reverse == ns) && // 속성 1 - 리스트는 뒤집고 뒤집으면 원래 리스트여야한다.
-    forAll(intList)(ns => ns.headOption == ns.reverse.lastOption) // 속성 2 - 뒤집은 리스트의 마지막 항목은 원래 항목의 첫번째 항목이어야한다.
+    forAll(intList)(ns => ns.headOption == ns.reverse.headOption) // 속성 2 - 뒤집은 리스트의 마지막 항목은 원래 항목의 첫번째 항목이어야한다.
 
   // 테스트 코드 실행
   val maxSize = 10 // 검례 최소화(test case minimization) - 디버깅을 쉽게 하기 위해 테스트 개수를 줄여가면서 실패하는 최소 테스트 개수를 찾는다
@@ -25,12 +24,12 @@ object Main extends App {
   val result = prop.run(maxSize, testCases, rng) // 테스트 실행
 
   // 결과 출력
-  result match {
-    case Falsified(msg, n) => // 테스트 실패, n은 성공한 테스트 케이스 개수
-      println(s"! Falsified after $n passed tests\n $msg")
-    case Passed => // 모든 테스트 성공
-      println(s"+ OK, passed all tests.")
-  }
+//  result match {
+//    case Falsified(msg, n) => // 테스트 실패, n은 성공한 테스트 케이스 개수
+//      println(s"! Falsified after $n passed tests\n $msg")
+//    case Passed => // 모든 테스트 성공
+//      println(s"+ OK, passed all tests.")
+//  }
 
   // 리스트 크기를 지정할 수 있는 함수가 있으면 좋겠다.
   val intList2 = Gen.listOfN(8, Gen.choose(0, 100))
@@ -39,8 +38,8 @@ object Main extends App {
   // flatMap으로 Gen을 연속으로 적용하기
   val ints = Gen.choose(0, 12)
 //   println(ints.sample.run(rng))
-
   val doubleList = ints.flatMap(i => Gen.listOfN(i, Gen.choose(0.0, 0.1)))
+
   val doubles = for {
     i      <- Gen.choose(0, 12)
     double <- Gen.listOfN(i, Gen.choose(0.0, 0.1))
@@ -68,8 +67,8 @@ object Main extends App {
     forAll(intList)(ns => ns.headOption == ns.reverse.headOption)
       .tag("뒤집은 리스트의 마지막 항목은 원래 항목의 첫번째 항목이어야한다")
 
-//  val result3 = prop3.run(10, 10, RNG.Simple(System.currentTimeMillis))
-//
+  val result3 = prop3.run(10, 10, RNG.Simple(System.currentTimeMillis))
+
 //  result3 match {
 //    case Falsified(msg, n) =>
 //      println(s"! Falsified after $n passed tests:\n $msg")
@@ -101,7 +100,8 @@ object Main extends App {
 
   // map(unit(1))(_ + 1) == unit(2) 를 증명하기
   val ES: ExecutorService = Executors.newCachedThreadPool
-  val p1 = Prop.forAll(Gen.unit(Par.unit(1)))( i =>
+  val g = Gen.unit(Par.unit(1))
+  val p1 = Prop.forAll(g)( i =>
     Par.map(i)(_ + 1)(ES).get == Par.unit(2)(ES).get
   )
 
@@ -111,6 +111,7 @@ object Main extends App {
     val p2 = Par.unit(2)
     p(ES).get == p2(ES).get
   }
+//  Prop.run(p2)
 
   def equal[A](p: Par[A], p2: Par[A]): Par[Boolean] =
     Par.map2(p,p2)(_ == _)
@@ -140,12 +141,13 @@ object Main extends App {
   }
 
   // 8.5 고차 함수의 검사와 향후 개선 방향
-  // 어려운 연습문제 8.19
+  //  // 어려운 연습문제 8.19
 
   // 8.6 생성기의 법칙
   // Gen에 있는 map은 Par나 다른 형식과 같고 같은 속성을 가진다.
   // def map[A, B](a: Par[A])(f: A => B): Par[B]
-  // def map[B](f: A => B): Gen[B]
+  // class Gen[A] { def map[B](f: A => B): Gen[B] }
+  // gen.map(_ + 1)
   // map(x)(id) = x
 
   // 8.7 요약
