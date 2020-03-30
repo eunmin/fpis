@@ -1,6 +1,6 @@
 package fpis.parser
 
-import fpis.parser.impl.{JSON, Reference}
+import fpis.parser.impl.{JSON, Reference, Sliceable}
 import fpis.parser.impl.ReferenceTypes.Parser
 
 object Main extends App {
@@ -25,4 +25,19 @@ object Main extends App {
 
   println(Reference.run(charParser(Reference))("a"))
   println(Reference.run(charParser(Reference))("b"))
+
+  def p2[Parser[+_]](P: Parsers[Parser]): Parser[String] = {
+    import P._
+    slice(("a" | "b").many)
+  }
+
+  println(Sliceable.run(p2(Sliceable))("aaba"))
+
+  // 0개 이상의 'a' 다음에 'b'가 오는 것에 매칭되는 파서
+  def p3[Parser[+_]](P: Parsers[Parser]): Parser[(Int, Int)] = {
+    import P._
+    char('a').many.slice.map(_.size) ** char('b').many1.slice.map(_.size)
+  }
+
+  println(Sliceable.run(p3(Sliceable))("aaba"))
 }
