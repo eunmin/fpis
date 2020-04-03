@@ -74,10 +74,18 @@ trait Parsers[Parser[+_]] { self =>
   // 연습문제 9.7
   def flatMap[A,B](p: Parser[A])(f: A => Parser[B]): Parser[B]
 
+  // label("first magic word")("abra") 와 같이 에러가 발생했을 때 메시지를 출력하기 위해 라벨을 만든다.
   def label[A](msg: String)(p: Parser[A]): Parser[A]
 
+  // label은 중첩된 오류를 보여 줄 수 없다.
+  // 예를들어 label("first magic word")("abra") ** " ".many ** label("second magic word")("cadabra")
+  // 에서 ("abra cAdabra")라고 했을 때 메시지가 분리되어 버려 알기 어렵다.
+  // 아래는 두개를 하나로 묶어 메시지를 표시할 수 있는 대수다.
+  // scope("magic speel") {
+  //   "abra" ** spaces ** "cadabra"
+  // }
   def scope[A](msg: String)(p: Parser[A]): Parser[A]
-
+  
   def attempt[A](p: Parser[A]): Parser[A]
 
   def skipL[B](p: Parser[Any], p2: => Parser[B]): Parser[B] = map2(slice(p), p2)((_,b) => b)
