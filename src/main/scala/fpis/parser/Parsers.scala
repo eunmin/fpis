@@ -85,7 +85,7 @@ trait Parsers[Parser[+_]] { self =>
   //   "abra" ** spaces ** "cadabra"
   // }
   def scope[A](msg: String)(p: Parser[A]): Parser[A]
-  
+
   def attempt[A](p: Parser[A]): Parser[A]
 
   def skipL[B](p: Parser[Any], p2: => Parser[B]): Parser[B] = map2(slice(p), p2)((_,b) => b)
