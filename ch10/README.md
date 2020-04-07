@@ -5,7 +5,7 @@
 ## 모노이드란 무엇인가?
 
 - `"foo" + "bar"`는 `"foobar"`이고 항등원은 빈 문자열이다.
-- 문자열 항등원과 문자열을 그 문자열이 나온다. `"" + s"`는 `s`와 같다.  
+- 문자열 항등원과 문자열을 합치면 그 문자열이 나온다. `"" + s"`는 `s`와 같다.  
 - 문자열 `r`, `s`, `t`는 `(r + s) + t`로 하나 `r + (s + t)`로 하나 같다. 결합 법칙을 만족한다.
 - 정수도 똑같다. 다만 항등원이 0이다.
 - 부울 연산자 &&는 결합적이고 항등원은 `true`다.
@@ -60,15 +60,33 @@ trait Monoid[A] {
 
 - [연습문제] Option에 대한 모노이드 인스턴스를 만들어라.
   ```scala
-  
+  def optionMonoid[A]: Monoid[Option[A]] = new Monoid[Option[A]] {
+    override def op(a1: Option[A], a2: Option[A]): Option[A] = a1 orElse a2
+    override def zero: Option[A] = None
+  }
   ```
   
 - [연습문제] 인수와 반환값의 타입이 같은 함수를 자기함수(endofunction)이라고 한다. 자기 함수를 위한 모노이드 인스턴스를 만들어라.
   ```scala
-
+  def endoMonoid[A]: Monoid[A => A] = new Monoid[A => A] {
+    def op(f: A => A, g: A => A) = f compose g
+    val zero = (a: A) => a
+  }
   ```
+- [연습문제] Prop를 이용해서 모노이드 법칙을 검사해보시오.
+  ```scala
+  def monoidLaws[A](m: Monoid[A], gen: Gen[A]): Prop =
+    forAll(for {
+      x <- gen
+      y <- gen
+      z <- gen
+    } yield (x, y, z))(p =>
+      m.op(p._1, m.op(p._2, p._3)) == m.op(m.op(p._1, p._2), p._3)) &&
+    forAll(gen)((a: A) =>
+      m.op(a, m.zero) == a && m.op(m.zero, a) == a)
+  ``` 
   
- - 모노이드만 가지고 유용한 것을 만들 수 있을까?
+- 모노이드만 가지고 유용한 것을 만들 수 있을까?
  
  ## 모노이드를 이용한 목록 접기
  

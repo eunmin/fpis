@@ -35,4 +35,9 @@ object Instances {
     override def op(a1: Option[A], a2: Option[A]): Option[A] = a1 orElse a2
     override def zero: Option[A] = None
   }
+
+  def endoMonoid[A]: Monoid[A => A] = new Monoid[A => A] {
+    def op(f: A => A, g: A => A) = f compose g
+    val zero = (a: A) => a
+  }
 }

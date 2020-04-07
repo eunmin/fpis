@@ -16,17 +16,34 @@ object Main extends App {
   // 파서를 실행하는 run 함수
 //  println(Sliceable.run(p1(Sliceable))("aaa"))
 
+
+
+
+
+
+
   def p2[Parser[+_]](P: Parsers[Parser]) = {
     import P._
     string("abra") // abc 문자열을 매칭해서 인식하는 파서
   }
 //  println(Sliceable.run(p2(Sliceable))("abra"))
 
+
+
+
+
+
   def p3[Parser[+_]](P: Parsers[Parser]) = {
     import P._
-    or(string("abra"), string("cadabra")) // or를 이용해서 abra 또는 cadabra 문자열을 인식하는 파서 : | 연산자로 정의
+    //or(string("abra"), string("cadabra")) // or를 이용해서 abra 또는 cadabra 문자열을 인식하는 파서 : | 연산자로 정의
+    "abra" | "cadabra"
   }
 //  println(Sliceable.run(p3(Sliceable))("cadabra"))
+
+
+
+
+
 
   def p4[Parser[+_]](P: Parsers[Parser]) = {
     import P._
@@ -34,14 +51,25 @@ object Main extends App {
   }
 //  println(Sliceable.run(p4(Sliceable))("ababcad"))
 
+
+
+
+
   // 9.2 가능한 대수 하나
   def p6[Parser[+_]](P: Parsers[Parser]) = {
     import P._
+//    many(char('a'))
     map(many(char('a')))(_.size) // 여러개의 a를 인식하고 결과 값을 map 함수로 변환 (크기)
   }
 //  println(Sliceable.run(p6(Sliceable))("aaaaabb"))
 
+
+
+
   // map 법칙을 Laws에 만들자.
+
+
+
 
   // 9.2.1 슬라이싱과 비지 않은 되풀이
   def p7[Parser[+_]](P: Parsers[Parser]) = {
@@ -50,17 +78,31 @@ object Main extends App {
   }
 //  println(Sliceable.run(p7(Sliceable))("aaba"))
 
+
+
+
+
   def p8[Parser[+_]](P: Parsers[Parser]) = {
     import P._
     many1(char('a')) // 하나 이상 a가 나와야 매칭된다. many 는 없어도 매칭이 됨
   }
 //  println(Sliceable.run(p8(Sliceable))("aaba"))
 
+
+
+
+
   def p9[Parser[+_]](P: Parsers[Parser]) = {
     import P._
-    product(string("abra"), string("cadabra")) // 앞에 파서가 나오고 뒤에 파서가 매칭되어야 함 : ** 연산자로 정의
+//    product(string("abra"), string("cadabra")) // 앞에 파서가 나오고 뒤에 파서가 매칭되어야 함 : ** 연산자로 정의
+    "abra" ** "cadabra"
   }
 //  println(Sliceable.run(p9(Sliceable))("abracadabra"))
+
+
+
+
+
 
   def p10[Parser[+_]](P: Parsers[Parser]) = {
     import P._
@@ -108,6 +150,12 @@ object Main extends App {
   }
 //  println(Sliceable.run(p12(Sliceable))("abra cAdabra"))
 
+  for {
+    user1: Either[Throwable, User] <- findUser(1)
+    email = getUserEmail(user1)
+
+    result: Either[Throwable, Boolean] <- register(1, email)
+  }
   // 9.5.2 오류의 중첩
   def p13[Parser[+_]](P: Parsers[Parser]) = {
     import P._
@@ -126,7 +174,7 @@ object Main extends App {
     (attempt("abra" ** spaces ** "abra") ** "cadabra") | ("abra" ** spaces ** "cadabra!")
   }
 
-//  println(Sliceable.run(p14(Sliceable))("abra abracadabra"))
+  println(Sliceable.run(p14(Sliceable))("aaa"))
 //  println(Sliceable.run(p14(Sliceable))("abra cadabra!"))
 
   // 9.6 대수의 구현
