@@ -68,6 +68,7 @@ trait Monoid[A] {
   
 - [연습문제] 인수와 반환값의 타입이 같은 함수를 자기함수(endofunction)이라고 한다. 자기 함수를 위한 모노이드 인스턴스를 만들어라.
   ```scala
+  // 교환 법칙은 성립하지 않는다.
   def endoMonoid[A]: Monoid[A => A] = new Monoid[A => A] {
     def op(f: A => A, g: A => A) = f compose g
     val zero = (a: A) => a
