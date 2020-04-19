@@ -187,16 +187,184 @@
   
 ## 모나드 법칙
 
+- `Monad[F]`는 일종의 `Functor[F]`기 때문에 Functor 법칙도 Monad에 성립한다.
+- 그 외 법칙은 어떤 것이 있을까?
+
 ### 결합법칙
 
+- 세 개의 모나드 값을 하나로 조합할 때 셋 중에 어떤 것을 먼저 조합해야 할까?
+- [예제1]
+  ```scala
+  case class Order(item: Item, quantity: Int)
+  case class Item(name: String, price: Double)
+  
+  val genOrder: Gen[Order] = for {
+    name <- Gen.stringN(3) // 길이가 3인 문자열
+    price <- Gen.uniform.map(_ * 10) // 0 ~ 10 사이의 균등분포 Double 난수 
+    quantity <- Gen.choose(1,100) // 1 ~ 100 사이 난수
+  } yield Order(Item(name, price), quantity)
+  ```
+- [예제2] 예제1과 같은 기능을 하지만 Item을 따로 생성할 수 있도록 분리
+  ```scala
+  var  genItem: Gen[Item] = for {
+    name <- Gen.stringN(3)
+    price <- Gen.uniform.map(_ * 10)
+  } yield Item(name, price)
+  
+  var genOrder: Gen[Order] = for {
+    item <- genItem
+    quantity <- Gen.choose(1,100)
+  } yield Order(item, quantity)
+  ``` 
+- 예제1,예제2는 같은 결과가 나올까? 펼쳐보자.
+  ```scala
+  Gen.nextString.flatMap(name => 
+  Gen.nextDouble.flatMap(price =>
+  Gen.nextInt.map(quantity =>
+    Order(Item(name, price), quantity)
+  )))
+  
+  Gen.nextString.flatMap(name =>
+  Gen.nextint.map(price =>
+    Item(name, price))).flatMap(item => 
+            Gen.nextInt.map(quantity => 
+              Order(item, quantity)))
+  ```
+
+- 구현은 다르지만 flatMap이 결합법칙을 만족하기 때문에 같다.
+  ```scala
+  x.flatMap(f).flatMap(g) == x.flatMap(a => f(a).flatMap(g))
+  ```
+  
 ### 특정 모나드의 결합법칙 성립 증명
+
+- Option에 대해 결합 법칙이 성립할까? (성립한다.)
+  ```scala
+  None.flatMap(f).faltMap(g) == None.flatMap(a => f(a).flatMap(g))
+  
+  None == None // None.flatMap 은 None이기 때문에
+
+  Some(v).flatMap(f).flatMap(g) == Some(v).flatMap(a => f(a).flatMap(g))
+  f(v).flatMap(g) == (a => f(a).flatMap(g))(v)
+  f(v).flatMap(g) == f(v).faltMap(g)
+  ```
+- 모나드 결합 법칙은 모노이드처럼 직관적이지 않기 때문에 알아보기 힘들다.
+  ```scala
+   op(op(x, y), z) == op(x, op(y, z))
+  
+  x.flatMap(f).flatMap(g) == x.flatMap(a => f(a).flatMap(g))
+  ```
+- [연습문제] 모나드를 합성하는 클라이슬리 화살표를 만들어 표현해보자.
+  ```scala
+  def compose[A,B,C](f: A => F[B], g: B => F[C]): A => F[C] =
+      a => flatMap(f(a))(g)
+  
+  compose(compose(f, g), h) == compose(f, compose(g, h))
+  ```
 
 ### 항등법칙
 
+- 모나드의 기본 연산인 `unit`을 항등원으로 모나드 항등 법칙을 표현할 수 있다.
+  ```scala
+  def unit[A](a: => A): F[A]
+  
+  compose(f, unit) == f
+  compose(unit, f) == f
+  
+  flatMap(x)(unit) == x // ???
+  flatMap(unit(y))(f) == f(y) // ???
+  
+  x.flatMap(unit) == x
+  unit(y).flatMap(f) = f(y)
+  
+  Some(v).flatMap(unit) = Some(v)
+  Some(y).flatMap(f) = f(y) 
+  ```
+- [연습문제] 다음과 같은`join` 연산을 구현해라
+  ```scala
+  def join[A](mma: F[F[A]]): F[A] = flatMap(mma)(ma => ma)
+  ```
+  
 ## 도대체 모나드란 무엇인가?
 
+- 모나드란 모나드적 조합기들의 최소 집합 중 하나를 결합법칙과 항등법칙을 만족하도록 구현한 것이다.
+- 이 정의는 애매하고 동어 반복이다. 
+- 감을 잡기위해서 구체적인 모나드 두 개를 살펴보면서 비교해보자.
 
-### 항등 모나드
+### 항등 모나드 (Identity 모나드)
+
+```scala
+case class Id[A](value: A) {
+  def map[B](f: A => B): Id[B] = Id(f(value))
+  def flatMap[B](f: A => Id[B]): Id[B] = f(value)
+}
+
+Id("Hello, ").flatMap(a =>
+Id("monad!").flatMap(b =>
+  Id(a + b)))
+// Id("Hello, monad!")
+
+for {
+  a <- Id("Hello, ")
+  b <- Id("Monad!")
+} yield a + b
+// Id("Hello, monad!")
+
+val a = "Hello, "
+val b = "moand!"
+a + b
+// "Hello, monad!"
+```
+
+- 대입 변수 치환을 한다.
 
 ### State 모나드와 부분 형식 적용
 
+- 6장에서 살펴본 State를 다시 살펴보자.
+
+```scala
+case class State[S, A](run: S => (A, S)) {
+  def map[B](f: A => B): State[S, B] =
+    State(s => {
+      val (a, s1) = run(s)
+      (f(a), s1)
+    })
+  def flatMap[B](f: A => State[S, B]): State[S, B] =
+    State(s => {
+      val (a, s1) = run(s)
+      f(a).run(s1)
+    })
+}
+
+class StateMonads[S] {
+  type StateS[A] = State[S, A]
+
+  // S 타입을 고정한 State 모나드 인스턴스를 생성
+  def stateMonad[S] = new Monad[({type lambda[x] = State[S, x]})#lambda] {
+    def unit[A](a: => A): State[S, A] = State(s => (a, s))
+    override def flatMap[A,B](st: State[S, A])(f: A => State[S, B]): State[S, B] =
+      st flatMap f 
+  }
+  
+  def getState[S]: State[S,S] = State(s => (s,s))
+  def setState[S](s: S): State[S,Unit] = State(_ => ((),s))
+
+  val F = stateMonad[Int] // S가 Int State 모나드 인스턴스
+  
+  def zipWithIndex[A](as: List[A]): List[(Int,A)] =
+    as.foldLeft(F.unit(List[(Int, A)]()))((acc,a) => for {
+      xs <- acc
+      n  <- getState
+      _  <- setState(n + 1)
+    } yield (n, a) :: xs).run(0)._1.reverse
+}
+```
+
+- Id 모나드 처럼 변수에 바인딩 하는 것은 확실하다. 
+- 하지만 줄 사이에서 다른 일이 진행된다.
+- 모나드는 각 명령문의 경꼐에서 어떤 일이 일어나는지를 명시한다. 무슨 일이 일어나는지는 모나드 구현에 따라 다르다.
+- [어려운 연습문제] Reader 모나드를 구현하라. 
+
+## 요약
+
+- "전에도 모나드가 뭔지 이해했다고 생각했지만, 이제는 정말로 이해한것 같아."
