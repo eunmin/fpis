@@ -150,12 +150,12 @@ object Main extends App {
   }
 //  println(Sliceable.run(p12(Sliceable))("abra cAdabra"))
 
-  for {
-    user1: Either[Throwable, User] <- findUser(1)
-    email = getUserEmail(user1)
-
-    result: Either[Throwable, Boolean] <- register(1, email)
-  }
+//  for {
+//    user1: Either[Throwable, User] <- findUser(1)
+//    email = getUserEmail(user1)
+//
+//    result: Either[Throwable, Boolean] <- register(1, email)
+//  }
   // 9.5.2 오류의 중첩
   def p13[Parser[+_]](P: Parsers[Parser]) = {
     import P._

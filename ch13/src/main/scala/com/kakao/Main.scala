@@ -76,6 +76,8 @@ object Main extends App {
     d <- ReadLine.map(_.toDouble)
     _ <- PrintLine(fahrenheitToCelsius(d).toString)
   } yield ()
+
+
 //
 //  converter2.run
 //

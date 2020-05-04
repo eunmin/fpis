@@ -224,3 +224,243 @@ def factorialREPL: IO[Unit] = sequence_(
 * `IO[A]` 로 추론할 수 있는 것이 별로 없다. 아무것도 안 할 수도 있고 영원이 멈춰 있을 수도 있다.
 * `IO` 는 동시성이나 비동기 연산에 대해 아무것도 모른다.
 
+## StackOverflowError 방지
+
+아래 예제는 `flatMap` 구조상 스택오버플로우 에러가 난다.
+
+```scala
+val p = IO.forever(PrintLine("Still going..."))
+
+def flatMap[B](f: A => IO[B]): IO[B] = 
+  new IO[B] { def run = f(self.run).run } // run 안에서 self.run 을 부르는데 이 함수가 종료되어야 run이 종료된다. forever를 호출할 때 self.run은 종료되지 않는다. 꼬리 재귀가 아니다.
+```
+
+### 제어의 흐름을 자료 생성자로 구체화
+
+`flatMap` 을 그냥 `FlatMap(x,k)` 자료형으로 만들면 해석기를 꼬리재귀로 만들 수 있다.
+
+```scala
+sealed trait IO[A] {
+  def flatMap[B](f: A => IO[B]): IO[B] =
+    FlatMap(this, f)
+  def map[B](f: A => B): IO[B] =
+    flatMap(f andThen (Return(_)))
+}
+
+case class Return[A](a: A) extends IO[A]
+case class Suspend[A](resume: () => A) extends IO[A]
+case class FlatMap[A, B](sub: IO[A], k: A => IO[B]) extends IO[B]
+```
+
+새로 만든 `IO` 로 `PrintLine` 을 만들어보자.
+
+```scala
+def printLine(s: String): IO[Unit] = 
+  Suspend(() => println(s))
+
+def p = IO.forever(printLine("Still goging..."))
+
+// FlatMap(Suspend(() => println("Still goging...")),
+//   _ => FlatMap(Suspend(() => println("Still goging...")),
+//                ...
+//   )
+// )
+```
+
+이제 이 구조를 순회하면서 효과를 수행하는 해석기는 꼬리재귀로 만들 수 있다.
+
+```scala
+@annotation.tailrec def run[A](io: IO[A]): A = io match {
+  case Return(a) => a
+  case Suspend(r) => r()
+  case FlatMap(x, f) => x match {
+    case Return(a) => run(f(a)) // 꼬리재귀
+    case Suspend(r) => run(f(r())) // 꼬리재귀
+    case FlatMap(y, g) => run(y flatMap (a => g(a) flatMap f)) // 꼬리재귀
+  }
+}
+```
+
+위 구조는 일종의 코루틴이라고 할 수 있다. 또 `run` 같은 함수를 트램펄린 이라고 부른다.
+
+### 트램펄린 적용: 스택 넘침에 대한 일반적 해법
+
+위에서 만든 `IO` 는 꼭 `IO` 에만 쓸 수 있는 것은 아니다. 스택 넘침 문제를 해결할 수 있는 일반적인 해법이다.
+
+```scala
+val f = (x: Int) => x
+val g = List.fill(100000)(f).foldLeft(f)(_ compose _)
+g(42)
+// 스택오버플로우 에러
+```
+
+이 문제를 앞에서 만든 `IO` 로 해결할 수 있다.
+
+```scala
+val f = (x: Int) => Return(x)
+val g = List.fill(100000)(f).foldLeft(f) {
+  (a, b) => x => Suspend(() => ()).flatMap {
+    _ => a(x).flatMap(b)
+  }
+}
+run(g(42))
+// 스택오버플루우 문제가 없음
+```
+
+따라서 `IO` 는 입출력을 위한 모나드가 아니고 꼬리 호출을 위한 모나드다. 그래서 이름을 바꿔보자.
+
+```scala
+sealed trait TailRec[A] {
+  def flatMap[B](f: A => TailRec[B]): TailRec[B] =
+    FlatMap(this, f)
+  def map[B](f: A => B): TailRec[B] =
+    flatMap(f andThen (Return(_)))
+}
+
+case class Return[A](a: A) extends TailRec[A]
+case class Suspend[A](resume: () => A) extends TailRec[A]
+case class FlatMap[A, B](sub: TailRec[A], k: A => TailRec[B]) extends TailRec[B]
+```
+
+## 좀 더 정교한 IO 형식
+
+위에서 만든 `TailRec` 는 결국 중첩된 `FlatMap` 안에 있는 `Suspend` 구조에 `resume` 함수를 실행하는 것이다. `resume` 함수는 `() => A` 인데(`Function0` 타입) 이것은 그냥 `A` 값을 주는 것 외에 아무런 정보가 없다. 비동기로 실행할 방법도 없다. 그래서 `resume` 함수를 `() => A` 대신 `Par[A]` 로 바꾸면 비동기로 실행할 수 있다. 그런 형식을 `TailRec` 를 조금 고쳐 `Aysnc` 라고 하자.
+
+```scala
+sealed trait Async[A] {
+  def flatMap[B](f: A => Async[B]): Async[B] =
+    FlatMap(this, f)
+  def map[B](f: A => B): Async[B] =
+    flatMap(f andThen (Return(_)))
+}
+
+case class Return[A](a: A) extends Async[A]
+case class Suspend[A](resume: Par[A]) extends Async[A]
+case class FlatMap[A, B](sub: Async[A], k: A => Async[B]) extends Async[B]
+```
+
+이제 `Aysnc` 를 실행할 `run` 를 만들어보자.
+
+```scala
+@annotation.tailrec
+def step[A](async: Async[A]): Async[A] = async match {
+  case FlatMap(FlatMap(x,f), g) => step(x flatMap (a => f(a) flatMap g))
+	case FlatMap(Return(x), f) => step(f(x))
+  case _ => async
+}
+
+def run[A](async: Async[A]): Par[A] = step(async) match {
+  case Return(a) => Par.unit(a)
+  case Suspend(r) => Par.flatMap(r)(a => run(a))
+  case FlatMap(x, f) => x match {
+    case Suspend(r) => Par.flatMap(r)(a => run(f(a)))
+    case _ => sys.error("Imposiible; `step` eliminates these cases")
+  }
+}
+```
+
+이제 `Par` 를  이용해 비동기로 실행할 수 있다. 그럼 더 일반화 해서 `Par[A]` 대신 `F[A]` 면 어떨까? 그런 추상을 `Free` 라고 하자.
+
+```scala
+sealed trait Free[F[_],A]
+case class Return[F[_],A](a: A) extends Free[F,A]
+case class Suspend[F[_],A](resume: F[A]) extends Free[F,A]
+case class FlatMap[F[_],A,B](sub: Free[F,A], k: A => Free[F,B]) extends Free[F,B]
+```
+
+이제 `TailRec` 과 `Async` 는 `Free` 의 특별한 버전이기 때문에 타입 별칭으로 정의하면 된다.
+
+```scala
+type TailRec[A] = Free[Function0, A]
+type Async[A] = Free[Par, A]
+```
+
+### 자유 모나드
+
+* [연습문제] `Free[F,_]` 에대한 모나드 인스턴스를 만들어라.
+
+  ```scala
+  def freeMonad[F[_]]: Monad[({type f[a] = Free[F,a]})#f] =
+     new Monad[({type f[a] = Free[F,a]})#f] {
+       def unit[A](a: => A) = Return(a)
+       def flatMap[A,B](fa: Free[F, A])(f: A => Free[F, B]) = fa flatMap f
+     }
+  ```
+
+* [연습문제] `Free[Function0, A]` 를 실행하도록 특화된 해석기를 만들어라.
+
+  ```scala
+  @annotation.tailrec
+    def runTrampoline[A](a: Free[Function0,A]): A = (a) match {
+      case Return(a) => a
+      case Suspend(r) => r()
+      case FlatMap(x,f) => x match {
+        case Return(a) => runTrampoline { f(a) }
+        case Suspend(r) => runTrampoline { f(r()) }
+        case FlatMap(a0,g) => runTrampoline { a0 flatMap { a0 => g(a0) flatMap f } }
+      }
+    }
+  ```
+
+* [어려운 연습문제] `Monad[F]` 가 있을 때 `Free[F,A]` 에대한 일반적인 해석기를 만들어라.
+
+  ```scala
+  def run[F[_],A](a: Free[F,A])(implicit F: Monad[F]): F[A] = step(a) match {
+    case Return(a) => F.unit(a)
+    case Suspend(r) => r
+    case FlatMap(Suspend(r), f) => F.flatMap(r)(a => run(f(a)))
+    case _ => sys.error("Impossible, since `step` eliminates these cases")
+  }
+  ```
+
+위에서 본 `Free` 형식을 자유 모나드라고 부른다. 이것은 `A` 형식의 값을 `flatMap`으로 여러개 `F` 층으로 감싼 재귀적 자료 구조다. 그리고 결과를 얻기 위해 해석기는 `F` 를 모두 처리해야한다. 
+
+### 콘솔 입출력만 지원하는 모나드
+
+
+
+### 순수 해석기
+
+
+
+## 비차단 비동기 입출력
+
+
+
+## 범용 IO 형식
+
+입출력을 수행하는 프로그램의 일반적인 방법론은 다음과 같다.
+
+1. 각 연산을 나타내는 case 클래스가 있는 대수적 자료 형식 `F` 을 만든다.
+2. 형식 `F` 에 대해 `Free[F,A]` 를 생성해 프로그램을 작성한다.
+
+그러면 `type IO[A] = Free[Par,A]` 를 얻을 수 있고 이 형식은 순차실행과 비동기 실행 모두를 지원한다.
+
+### 그 모든 것의 끝에 있는 주 프로그램
+
+`main` 함수는 `Unit` 을 리턴한다. 비슷하게 `IO[Unit]` 을 리턴하는 `pureMain`을 만들고 내가 만든 프로그램에서는 순수한 `IO` 만 처리할 수 있는 `App` 이라는 추상을 만들어보자.
+
+```scala
+abstract class App {
+  import java.util.concurrent._
+  
+  def unsafePerformIO[A](a: IO[A])(pool: ExecutorService): A =
+    Par.run(pool)(run(a)(parMonad))
+  
+  def main(args: Array[String]): Unit = {
+    val pool = Executors.fixedThreadPool(8)
+    unsafePerformIO(pureMain(args))(pool)
+  }
+  
+  def pureMain(args: IndexedSeq[String]): IO[Unit] // 상속 받는 클래스에서 구현해야한다.
+}
+```
+
+## IO 형식이 스트림 방식 입출력에 충분하지 않은 이유
+
+
+
+## 요약
+
+
+
