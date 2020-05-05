@@ -417,15 +417,233 @@ type Async[A] = Free[Par, A]
 
 ### 콘솔 입출력만 지원하는 모나드
 
+`Free[F,A]` 를 더 알아보기 위해 콘솔 입출력만 할 수있는 `F` 를 만들어보자.
 
+```scala
+sealed trait Console[A] {
+  def toPar: Par[A]
+  def toThunk: () => A
+}
+case object ReadLine extends Console[Option[String]] {
+  def toPar = Par.lazyUnit(run)
+  def toThunk = () => run
+  
+  def run: Option[String] =
+    try Some(readLine())
+    catch { case e: Exception => None }
+}
+case class Println(line: String) extends Console[Unit] {
+  def toPar = Par.lazyUnit(println(line))
+  def toThunk = () => println(line)
+}
+```
+
+```scala
+object Console {
+	type ConsoleIO[A] = Free[Console,A]
+  
+  def readLn: ConsoleIO[Option[String]] = 
+    Suspend(ReadLine)
+  
+  def printLn(line: String): ConsoleIO[Unit] =
+    Suspend(Println(line))
+}
+```
+
+이제 예제를 만들어보자.
+
+```scala
+val f1: Free[Console, Option[String]] = for {
+  _ <- printLn("I can only interact with the console.")
+  ln <- readLn
+} yield ln
+```
+
+위 식을 실행하려면 `run` 을 사용하면 된다.
+
+```scala
+def run[F[_],A](a: Free[F,A])(implicit F: Monad[F]): F[A]
+```
+
+하지만 실행하려면 `Console` 에 대한 모나드 인스턴스가 필요하다. 그리고 `Console` 타입에는 모나드를 구현할 수 없다. ?
+
+따라서 `Console` 을 모나드를 형성하는 `Function0` 이나 `Par` 로 바꿔야한다.
+
+```scala
+trait Translate[F[_], G[_]] { 
+  def apply[A](f: F[A]): G[A]
+  type ~>[F[_],G[_]] = Translate[F,G] // ~> 중위 연산으로 Translate[F,G]를 F ~> G 로 쓸 수 있다.
+}
+
+val consoleToFunction0 = new (Console ~> Function0) {
+  def apply[A](a: Console[A]) = a.toThunk
+}
+
+val consoleToPar = new (Console ~> Par) {
+  def apply[A](a: Console[A]) = a.toPar
+}
+```
+
+이렇게 하면 `run`을 다음과 같이 일반화 할 수 있다.
+
+```scala
+def runFree[[F_], G[_], A](free: Free[F,A])(t: F ~> G)(implicit G: Monad[G]): G[A] =
+  step(free) match {
+    case Return(a) => G.unit(a)
+    case Suspend(r) => t(r)
+    case FlatMap(Suspend(r),f) => G.flatMap(t(r))(a => runFree(f(a))(t))
+    case _ => sys.error("Impossible; `step` eliminates these cases")
+  }
+```
+
+이제 `Free[Console,A]` 를 `Function0[A]` 나 `Par[A]` 로 변환하는 편의용 함수를 구현해보자.
+
+```scala
+def runConsoleFunction0[A](a: Free[Console,A]): () => A =
+  runFree[Console,Function0,A](a)(consoleToFunction0)
+
+def runConsolePar[A](a: Free[Console,A]): Par[A] =
+  runFree[Console,Par,A](a)(consoleToPar)
+```
+
+이 구현은 `Function0`과 `Par` 모나드 인스턴스를 이용한다. (`implicity G: Monad[G]` 인자)
+
+```scala
+implicit val function0Monad = new Monad[Function0] {
+  def unit[A](a: => A) = () => a
+  def flatMap[A,B](a: Function0[A])(f: A => Function0[B]) = 
+    () => f(a())()
+}
+
+implicit val parMonad = new Monad[Par] {
+  def unit[A](a: => A) = Par.unit(a)
+  def flatMap[A,B](a: Par[A])(f: A => Par[B]) \ 
+    Par.fork { Par.flatMap(a)(f) }
+}
+```
 
 ### 순수 해석기
 
+앞에서 만든 `Console` 해석기는 부수효과가 있었지만 부수효과가 없는 해석기도 만들 수 있다.
 
+```scala
+case class ConsoleReader[A](run: String => A) {
+  def map[B](f: A => B): ConsoleReader[B] = 
+    ConsoleReader(r => f(run(r)))
+  def flatMap[B](f: A => ConsoleReader[B]): ConsoleReader[B] =
+    ConsoleReader(r => f(run(r)).run(r))
+}
+
+object ConsoleReader {
+  implicit val monad = new Monad[ConsoleReader] {
+    def unit[A](a: => A) = ConsoleReader(_ => a)
+    def flatMap[A,B](ra: ConsoleReader[A])(f: A => ConsoleReader[B]) =
+      ra flatMap f
+  }
+}
+```
+
+```scala
+sealed trait Console[A] {
+  def toPar: Par[A]
+  def toThunk: () => A
+  def toReader: ConsoleReader[A] // 추가
+  def toState: ConsoleState[A] // 추가
+}
+val consoleToFunction0 = new (Console ~> Function0) {
+  def apply[A](a: Console[A]) = a.toThunk
+}
+
+val consoleToPar = new (Console ~> Par) {
+  def apply[A](a: Console[A]) = a.toPar
+}
+
+// 추가
+val consoleToReader = new (Console ~> ConsoleReader) {
+  def apply[A](a: Console[A]) = a.toReader
+}
+
+def runConsoleFunction0[A](a: Free[Console,A]): () => A =
+  runFree[Console,Function0,A](a)(consoleToFunction0)
+
+def runConsolePar[A](a: Free[Console,A]): Par[A] =
+  runFree[Console,Par,A](a)(consoleToPar)
+
+// 추가
+@annotation.tailrec
+def runConsoleReader[A](a: ConsoleIO[A]): ConsoleReader[A] = 
+  runFree[Console,ConsoleReader,A](a)(consoleToReader)
+```
+
+또 입력 버퍼와 출력 버퍼가 있는 해석기도 만들 수 있다.
+
+```scala
+case class Buffers(in: List[String], out: List[String])
+case class ConsoleState[A](run: Buffers => (A, Buffers)) { ... }
+
+object ConsoleState {
+  implicit val monad: new Monad[ConsoleState] { ... }
+}
+
+val consoleToState = new (Console ~> ConsoleState) {
+  def apply[A](a: Console[A]) = a.toState
+}
+
+def runConsoleState[A](a: ConsoleIO[A]): ConsoleState[A] =
+  runFree[Console,ConsoleState,A](a)(consoleToState)
+```
+
+이렇게 작은 언어 (`Console`)을 위한 해석기를 여러개 만들 수 있다. 부수효과를 낼지 말지는 해석기를 어떻게 구현하느냐에 달려있다.
 
 ## 비차단 비동기 입출력
 
+이제 앞에서 만든 `ConsoleIO` 를 이용해 비차단 입출력을 만들어보자
 
+```scala
+def p = for {
+  _ <- printLn("이름이 뭐니?")
+  n <- readLn
+  _ <- n match {
+    case Some(n) => printLn(s"Hello, $n!")
+    case None => printLn("Fine, be that way")
+  }
+} yield ()
+
+val q = runConsolePar(p)
+```
+
+비동기를 허용하는 `Par` 로 실행하지만 실제 `printLn` 이나 `readLn` 구현이 차단(blocking) 방식이기 때문에 비차단으로 동작하지 않는다. 비차단으로 동작하는 입출력 라이브러리가 아래와 같다고 하고 다시 구현해보자.
+
+```scala
+trait Source {
+  def readBytes(numBytes: Int, callback: Either[Throwable, Array[Btye]] => Unit): Unit
+}
+
+trait Future[+A] {
+  private def apply(k: A => Unit): Unit // k는 callback 처럼 나중에 불러준다.
+}
+
+type Par[+A] = ExcutorService => Future[A]
+
+def async[A](run: (A => Unit) => Unit) : Par[A] = es => new Future {
+  def apply(k: A => Unit) = run(k)
+}
+
+def nonblockingRead(source: Source, numBytes: Int): Par[Either[Throwable, Array[Byte]]] =
+  async { (callback) =>
+    source.readBytes(numBytes, callback)
+  }
+
+def readPar(source: Source, numBytes: Int): Free[Par, Either[Throwable,Array[Byte]]] =
+  Suspend(nonblockingRead(srouce, numBytes))
+
+val src: Source = ...
+val program: Free[Par, Unit] = for {
+  chunk1 <- readPar(src, 1024) // nonblocking으로 실행
+  chunk2 <- readPar(src, 1024) // nonblocking으로 실행
+  ...
+}
+```
 
 ## 범용 IO 형식
 
@@ -458,9 +676,54 @@ abstract class App {
 
 ## IO 형식이 스트림 방식 입출력에 충분하지 않은 이유
 
+화씨 파일을 읽어 섭씨 파일로 쓰는 예제를 보자.
 
+```scala
+trait Files[A]
+case class ReadLines(file: String) extends Files[List[String]]
+case class WriteLines(file: String, lines: List[String]) extends Files[Unit]
+
+val p: Free[Files, Unit] = for {
+  lines <- Suspend { ReadLines("fahrenheit.txt") }
+  cs = lines.map(s => fahrenheitToCelsius(s.toDouble).toString)
+  _ <- Suspend { WriteLines("celsius.txt", cs) }
+} yield ()
+```
+
+만약 파일이 커서 한번에 메모리에 담기 힘들다면 아래 처럼 한줄 씩 읽어서 처리하도록 바꿔야한다.
+
+```scala
+case class OpenRead(file: String) extends Files[HandlerR]
+case class OpenWrite(file: String) extends Fiels[HandlerW]
+case class ReadLine(h: HandlerR) extends Files[Option[String]]
+case class WriteLine(h: HandlerW, line: String) extends Files[Unit]
+
+trait HandlerR
+trait HandlerW
+
+def loop(f: HandlerR, c: HandlerW): Free[Files, Unit] = for {
+  line <- Suspend { ReadLine(f) }
+  _ <- line match {
+    case None => IO.unit(())
+    case Some(s) => Suspend {
+      WriteLine(fahrenheitToCelsius(s.toDouble))
+    } flatMap (_ => loop(f,c))
+  }
+} yield b // b???
+
+def converFiles = for {
+  f <- Suspend(OpenRead("fahrenheit.txt"))
+  c <- Suspend(OpenWrite("celsius.txt"))
+  _ <- loop(f,c)
+} yield ()
+```
+
+위 예제는 루프를 직접 구현했고 이런 코드 스타일은 합성하기 어렵다. (리스트라면 map, filter, ...) 
+
+절차적 프로그래밍의 문제를 그대로 가지고 있다.
+
+15장에서 스트림을 이용해 합성이 가능한 입출력을 어떻게하는지 알아보자.
 
 ## 요약
 
-
-
+순수하게 입출력을 어떻게 다루는지 알아봤다. 그 형태는 결국 입출력을 표현하는 것과 실행하는 방법을 분리하는 형태 였는데 이것을 일반화해 `Free` 모나드를 만들었다. 그리고 명령형 프로그램을 순수 함수로 어떻게 표현하는지 알아봤고 그 한계에 대해서도 알아봤다.
