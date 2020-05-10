@@ -163,9 +163,52 @@ val r = ST.runST(p)
 r: (Int, Int) = (3,2)
 ```
 
+`RunableST` 로 `STRef` 를 꺼낼 수 는 없기 때문에 내부 상태는 밖으로 나갈 수 없다. 
 
+```scala
+new RunableST[STRef[Nothing,Int]] {
+  def apply[S] = STRef(1)
+}
+// error: type mismatch;
+// found   : ST[S,STRef[S,Int]]
+// required: ST[S,STRef[Nothing,Int]] ...
+```
+
+하지만 우회해서 빼낼 수 있지만 `STRef` 의 `read`, `wirte` 에는 접근할 수 없어 안전하다.
 
 ### 변이 가능 배열
+
+```scala
+sealed abstract class STArray[S,A](implicit manifest: Manifest[A]) {
+  protected def value: Array[A]
+  def size: ST[S,Int] = ST(value.size)
+  
+  def write(i: Int, a: A): ST[S,Unit] = new ST[S,Unit] {
+    def run(s: S) = {
+      value(i) = a
+      ((), s)
+    }
+  }
+  
+  def read(i: Int): ST[S,A] = ST(value(i))
+  
+  def freeze: ST[S,List[A]] = ST(value.toList) // 불변형으로 바꿈
+}
+
+object STArray {
+  def apply[S,A:Manifest](sz: Int, v: A): ST[S,STArray[S,A]] = 
+    ST(new STArray[S,A]) {
+      lazy val value = Array.fill(sz)(v)
+    }
+  
+  def fromList[S,A:Manifest](xs: List[A]): ST[S,STArray[S,A]] = 
+    ST(new STArray[S,A]) {
+      lazy val value = xs.toArray
+    }
+}
+```
+
+
 
 ### 순수 함수적 제자리 quicksort
 
@@ -182,14 +225,35 @@ def swap[S](i: Int, j: Int): ST[S, Unit] = for {
 
 [연습문제] `partition` 함수를 만들어라
 
-```
+```scala
+def noop[S] = ST[S,Unit](())
 
+def partition[S](a: STArray[S,Int], l: Int, r: Int, pivot: Int): ST[S,Int] = for {
+  vp <- a.read(pivot)
+  _ <- a.swap(pivot, r)
+  j <- STRef(l)
+  _ <- (l until r).foldLeft(noop[S])((s, i) => for {
+    _ <- s
+    vi <- a.read(i)
+    _  <- if (vi < vp) (for {
+      vj <- j.read
+      _  <- a.swap(i, vj)
+      _  <- j.write(vj + 1)
+    } yield ()) else noop[S]
+  } yield ())
+  x <- j.read
+  _ <- a.swap(x, r)
+} yield x
 ```
 
 [연습문제] `qs` 함수를 만들어라
 
-```
-
+```scala
+def qs[S](a: STArray[S,Int], l: Int, r: Int): ST[S, Unit] = if (l < r) for {
+  pi <- partition(a, l, r, l + (r - l) / 2)
+  _ <- qs(a, l, pi - 1)
+  _ <- qs(a, pi + 1, r)
+} yield () else noop[S]
 ```
 
 위에서 만든 함수로 다시 만든 `quicksort` 함수는 아래와 같다.
@@ -210,7 +274,37 @@ def quicksort(xs: List[Int]): List[Int] =
 
 ## 순수성은 문맥에 의존한다
 
+```scala
+case class Foo(s: String)
+
+val b = Foo("hello") == Foo("hello") // true
+
+val c = Foo("hello") eq Foo("hello") // false
+```
+
+모든 생성자는 부수효과가 있다. `eq` 를 쓰지 않으면 문제가 없다. 문맥에서 이것은 부수 효과가 아니라고 말할 수 있다.
+
+이 책에서 말하는 참조 투명성 정의는 이 점을 고려하지 않는다.
+
+```
+좀 더 일반적인 참조 투명성의 정의
+
+만일 어떤 프로그램 p에서 표현식 e의 모든 출현을 e의 평가 결과로 치환해도 p의 의미가 아무런 영향을 미치지 않는다면, 그 프로그램 p 에 관해 표현식 e는 참조에 투명하다.
+```
+
 ### 부수 효과로 간주되는 것은 무엇인가?
+
+```scala
+def timesTwo(x: Int) = {
+  if (x < 0) println("Got a negative number")
+  x * 2
+}
+```
+
+위 프로그램은 부수효과가 있다. 하지만 정말 참조 투명한지 이야기하려면 표준 출력을 관측할 필요가 있는지 선택해야한다.
 
 ## 요약
 
+자료의 변이가 지역을 벗어나지 않는다면 문제가 없다. 그리고 안전한 지역 변이를 위한 자료 형식을 만들어봤다.
+
+또 부수 효과로 간주 할 것은 프로그래머의 선택이라는 것도 알아봤다.
