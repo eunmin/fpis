@@ -53,7 +53,7 @@ def quicksort(xs: List[Int]): List[Int] = if (xs.isEmpty) xs else {
 
 ### 범위 있는 변이를 위한 작은 언어
 
-
+State 모나드(`S => (A,S)`)는 실제 mutation을 하는 것이 아니기 때문에 쓸 수 없다. 그래서 안전하게 실행될 수 있는 효과를 가지는 새로운 모나드 형식을 만들어보자.
 
 ```scala
 sealed trait ST[S,A] { self =>
@@ -132,7 +132,7 @@ trait RunableST[A] {
 val p = new RunableST[(Int,Int)] {
   def apply[S] = for {
     r1 <- STRef(1)
-    r2 <- STRef(1)
+    r2 <- STRef(2)
     x <- r1.read
     y <- r2.read
     _ <- r1.write(y + 1)
