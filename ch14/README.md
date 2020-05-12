@@ -151,7 +151,7 @@ object ST {
     	def run(s: S) = (memo, s)
     }
   }
-  def runST[A](st: RunableST[A]): A = 
+  def runST[A](st: RunableST[A]): A =
     st.apply[Unit].run(())._1 // ST의 run을 실행 할 수 있다.
 }
 ```
@@ -163,7 +163,7 @@ val r = ST.runST(p)
 r: (Int, Int) = (3,2)
 ```
 
-`RunableST` 로 `STRef` 를 꺼낼 수 는 없기 때문에 내부 상태는 밖으로 나갈 수 없다. 
+`RunableST` 로 `STRef` 를 꺼낼 수 는 없기 때문에 내부 상태는 밖으로 나갈 수 없다.
 
 ```scala
 new RunableST[STRef[Nothing,Int]] {
@@ -182,26 +182,26 @@ new RunableST[STRef[Nothing,Int]] {
 sealed abstract class STArray[S,A](implicit manifest: Manifest[A]) {
   protected def value: Array[A]
   def size: ST[S,Int] = ST(value.size)
-  
+
   def write(i: Int, a: A): ST[S,Unit] = new ST[S,Unit] {
     def run(s: S) = {
       value(i) = a
       ((), s)
     }
   }
-  
+
   def read(i: Int): ST[S,A] = ST(value(i))
-  
+
   def freeze: ST[S,List[A]] = ST(value.toList) // 불변형으로 바꿈
 }
 
 object STArray {
-  def apply[S,A:Manifest](sz: Int, v: A): ST[S,STArray[S,A]] = 
+  def apply[S,A:Manifest](sz: Int, v: A): ST[S,STArray[S,A]] =
     ST(new STArray[S,A]) {
       lazy val value = Array.fill(sz)(v)
     }
-  
-  def fromList[S,A:Manifest](xs: List[A]): ST[S,STArray[S,A]] = 
+
+  def fromList[S,A:Manifest](xs: List[A]): ST[S,STArray[S,A]] =
     ST(new STArray[S,A]) {
       lazy val value = xs.toArray
     }
@@ -291,6 +291,15 @@ val c = Foo("hello") eq Foo("hello") // false
 
 만일 어떤 프로그램 p에서 표현식 e의 모든 출현을 e의 평가 결과로 치환해도 p의 의미가 아무런 영향을 미치지 않는다면, 그 프로그램 p 에 관해 표현식 e는 참조에 투명하다.
 ```
+
+```scala
+val v = e
+```
+e의 참조투명성은 모든 e의 출현을 v로 바꿔도 프로그램의 의미가 변하지 않는다는 것을 말한다.
+
+프로그램의 의미가 바뀌지 않는다는 말은 철학적인 질문이다.
+
+참조투명성을 말할 때는 어떤 문백이 관여한다.
 
 ### 부수 효과로 간주되는 것은 무엇인가?
 
