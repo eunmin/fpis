@@ -21,7 +21,7 @@
     "One" + ("Two" + "Three")
     // "OneTwoThree"
   ```
-- 정수 덧셈 곱셈도 똑같다.
+- 정수 덧셈과 곱셈도 똑같다.
   ```kotlin
   1 + 2
   // 3
@@ -50,7 +50,7 @@
   2 * (3 * 4)
   // 24
   ```
-- 부울 연산자 &&는 결합적이고 항등원은 `true`다.
+- 부울 연산자 `&&`는 결합적이고 항등원은 `true`다.
   ```kotlin
   true && false
   // false
@@ -65,7 +65,7 @@
   true && (true && false)
   // false
   ```
-- 부울 연산자 ||는 결합적이고 항등원은 `false`다.
+- 부울 연산자 `||`는 결합적이고 항등원은 `false`다.
   ```kotlin
   true || true
   // true
@@ -81,20 +81,18 @@
   // true
   ```
 - 이런 종류의 대수를 모노이드라고 한다. 결합 법칙과 항등 법칙을 합쳐 모노이드 법칙이라고 한다.
-   
-```scala
-trait Monoid[A] {
-  def op(a1: A, a2: A): A
-  def zero: A
-}
-```
-
+  ```scala
+  trait Monoid[A] {
+    def op(a1: A, a2: A): A
+    def zero: A
+  }
+  ```
 - 위의 모노이드 정의가 실제 어떻게 동작하는지는 구현에 따라 다르다.
 - 아래는 `String`에 대한 모노이드 인스턴스다.
-  ```scala
-  val stringMonoid = new Monoid[String] {
-    override def op(a1: String, a2: String): String = a1 + a2
-    override def zero: String = ""
+  ```kotlin
+  val stringMonoid = object: Monoid<String> {
+    override fun op(a: String, b: String): String = a + b
+    override fun zero(): String = ""
   }
   ```
 - 아래는 `List`에 대한 모노이드 인스턴스다.
