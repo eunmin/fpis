@@ -81,26 +81,36 @@
   // true
   ```
 - 이런 종류의 대수를 모노이드라고 한다. 결합 법칙과 항등 법칙을 합쳐 모노이드 법칙이라고 한다.
-  ```scala
-  trait Monoid[A] {
-    def op(a1: A, a2: A): A
-    def zero: A
+  ```kotlin
+  interface Monoid<A> {
+      fun op(a: A, b: A): A
+      fun zero(): A
   }
   ```
 - 위의 모노이드 정의가 실제 어떻게 동작하는지는 구현에 따라 다르다.
-- 아래는 `String`에 대한 모노이드 인스턴스다.
+- `String` 모노이드 인스턴스
   ```kotlin
-  val stringMonoid = object: Monoid<String> {
-    override fun op(a: String, b: String): String = a + b
-    override fun zero(): String = ""
+  object StringInstances {
+      val monoid = object : Monoid<String> {
+          override fun op(a: String, b: String): String = a + b
+          override fun zero(): String = ""
+      }
   }
   ```
-- 아래는 `List`에 대한 모노이드 인스턴스다.
-  ```scala
-  def listMonoid[A] = new Monoid[List[A]] {
-    override def op(a1: List[A], a2: List[A]): List[A] = a1 ++ a2
-    override def zero: List[A] = Nil
+- `List` 모노이드 인스턴스
+  ```kotlin
+  object ListInstances {
+      fun <A> monoid() = object : Monoid<List<A>> {
+          override fun op(a: List<A>, b: List<A>): List<A> = a + b
+          override fun zero(): List<A> = listOf()
+      }
   }
+  ```
+- `Int` 모노이드 인스턴스
+  ```kotlin
+  ```
+- `Boolean` 모노이드 인스턴스
+  ```kotlin
   ```
  
 - [연습문제] 아래 타입, 연산자의 모노이드 인스턴스를 만들어라
